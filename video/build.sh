@@ -6,7 +6,7 @@ FFMPEG="${FFMPEG:-ffmpeg}"
 export FFMPEG
 VARIANTS="${*:-base A B C}"
 mkdir -p build ../out
-python3 audio/audio.py $VARIANTS
+[ -n "${SKIP_AUDIO:-}" ] || python3 audio/audio.py $VARIANTS
 for v in $VARIANTS; do
   [ -f "build/silent_$v.mp4" ] || node render.mjs video "$v" "build/silent_$v.mp4"
   name="reel_horta_$v"; [ "$v" = base ] && name="reel_horta_principal"
