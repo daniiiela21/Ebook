@@ -19,20 +19,21 @@ rs = np.random.RandomState(7)
 # ----------------------------------------------------------------- narration
 HOOKS = {
     'base': 'Comecei com um vasinho na janela...',
-    'A': 'Comecei com um vasinho na janela, e agora olha isso...',
-    'B': 'Eu não sabia que dava pra plantar isso dentro de casa...',
+    'A': 'Comecei com um vasinho na janela... e agora olha isso!',
+    'B': 'Eu não sabia que dava pra plantar isso dentro de casa!',
     'C': 'Esse cantinho da minha casa ficou meio fora de controle...',
 }
-# (start time, latest end time, text) – shared by every variant after the hook
+# (start time, latest end time, text) – shared by every variant after the hook.
+# Short, conversational lines so the voice can run at (almost) natural speed.
 LINES = [
-    (2.92, 5.35, 'E descobri que dava pra plantar muita coisa.'),
-    (5.5, 7.25, 'Algumas são bem mais fáceis do que eu imaginava.'),
-    (7.35, 9.75, 'E o mais legal: você não precisa de quintal.'),
-    (9.85, 12.4, 'Colher o que você mesma plantou tem outra graça.'),
-    (12.5, 14.75, 'Aí fui descobrir o que mais dava pra cultivar.'),
-    (14.82, 17.3, 'Esse guia reúne cem opções pra cultivar em casa.'),
+    (2.9, 5.3, 'Aí descobri que dava pra plantar muita coisa!'),
+    (5.5, 7.25, 'E olha... é mais fácil do que parece.'),
+    (7.35, 9.7, 'E nem precisa de quintal, viu?'),
+    (9.85, 12.4, 'Colher o que você mesma plantou... é outra coisa.'),
+    (12.55, 14.7, 'Aí eu quis saber o que mais dava pra plantar.'),
+    (14.85, 17.3, 'Esse guia tem cem opções pra você começar!'),
 ]
-HOOK_SLOT = (0.08, 2.78)
+HOOK_SLOT = (0.06, 2.78)
 VOICE = 'pf_dora'
 
 
@@ -56,7 +57,7 @@ def tts(text, max_len):
     if _kokoro is None:
         from kokoro_onnx import Kokoro
         _kokoro = Kokoro(os.path.join(HERE, 'kokoro.onnx'), os.path.join(HERE, 'voices.bin'))
-    for speed in (1.0, 1.05, 1.1, 1.15, 1.2, 1.25):
+    for speed in (0.97, 1.0, 1.04, 1.08, 1.12, 1.16, 1.2, 1.25):
         s, sr = _kokoro.create(text, voice=VOICE, speed=speed, lang='pt-br')
         y = trim(resample(np.asarray(s, dtype=np.float64), sr))
         if len(y) / SR <= max_len:
@@ -65,15 +66,50 @@ def tts(text, max_len):
     return y
 
 
+def breath(dur=0.28):
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+    x = bp_fast(rs.randn(n), 500, 3500) * np.sin(np.pi * t / dur) ** 2
+    return x * 0.035
+
+
+def room_ir(dur=0.35):
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+    ir = rs.randn(n) * np.exp(-t / 0.07)
+    ir = lp_fast(ir, 4500)
+    ir[0] = 0
+    return ir / np.sqrt(np.sum(ir ** 2))
+
+
+def humanize(v):
+    """Warm, close-mic 'phone creator' sound: EQ, gentle compression, small room."""
+    X = np.fft.rfft(v)
+    f = np.fft.rfftfreq(len(v), 1 / SR)
+    g = 1 + 0.35 * np.exp(-((f - 180) / 120) ** 2)          # body
+    g *= 1 - 0.25 * np.exp(-((f - 3200) / 900) ** 2)         # tame synthetic harshness
+    g *= 1 + 0.2 * np.exp(-((f - 6500) / 2000) ** 2)         # air
+    g *= 1 / (1 + (70 / np.maximum(f, 1)) ** 4)              # rumble cut
+    v = np.fft.irfft(X * g, len(v))
+    # soft-knee compression
+    env = np.convolve(np.abs(v), np.ones(480) / 480, mode='same')
+    gain = 1 / (1 + np.maximum(0, env - 0.12) * 3.5)
+    v = v * gain
+    wet = np.convolve(v, room_ir())[: len(v)]
+    return v + wet * 0.12
+
+
 def narration(variant):
     v = np.zeros(N)
     items = [(HOOK_SLOT[0], HOOK_SLOT[1], HOOKS[variant])] + LINES
-    for t0, t1, text in items:
+    for k, (t0, t1, text) in enumerate(items):
         y = tts(text, t1 - t0)
         y = y / (np.max(np.abs(y)) + 1e-9) * 0.9
+        if k in (1, 3, 5) and t0 > 0.4:
+            add(v, breath(), t0 - 0.3)
         i = int(t0 * SR)
         v[i:i + len(y)] += y[: N - i]
-    return v
+    return humanize(v)
 
 
 # ----------------------------------------------------------------- dsp helpers
@@ -175,24 +211,33 @@ def music():
         arp = [ch[0] + 12, ch[2] + 12, ch[1] + 12, ch[3] + 12, ch[2] + 12, ch[1] + 24, ch[3] + 12, ch[2] + 12]
         for e, m in enumerate(arp):
             swing = 0.06 if e % 2 else 0.0
-            s = pluck(midi(m), 1.2, 0.45) * 0.055
+            s = pluck(midi(m), 1.0, 0.7) * 0.065
             pan = 0.35 + 0.3 * ((e * 3) % 5) / 4
             add(L, s, t0 + e * BEAT / 2 + swing, 1 - pan)
             add(R, s, t0 + e * BEAT / 2 + swing, pan)
-        # drums: soft kick on 1 & 3, brushy hats on off-beats, rim on 2 & 4
+        # drums: kick on 1 & 3 (+ pickup), claps on 2 & 4, 16th shaker
         for q in range(4):
             tq = t0 + q * BEAT
             if q in (0, 2):
                 n = int(0.3 * SR); t = np.arange(n) / SR
-                kick = np.sin(2 * np.pi * (48 + 60 * np.exp(-t / 0.03)) * t) * np.exp(-t / 0.12) * 0.22
+                kick = np.sin(2 * np.pi * (50 + 70 * np.exp(-t / 0.03)) * t) * np.exp(-t / 0.13) * 0.3
                 add(L, kick, tq); add(R, kick, tq)
             else:
-                n = int(0.12 * SR)
-                rim = bp_fast(rs.randn(n), 900, 3000) * np.exp(-np.arange(n) / SR / 0.03) * 0.05
-                add(L, rim, tq, 0.8); add(R, rim, tq, 1.0)
-            n = int(0.08 * SR)
-            hat = hp_fast(rs.randn(n), 6000) * np.exp(-np.arange(n) / SR / 0.02) * 0.03
-            add(L, hat, tq + BEAT / 2 + 0.06, 0.6); add(R, hat, tq + BEAT / 2 + 0.06, 1.0)
+                n = int(0.18 * SR); t = np.arange(n) / SR
+                clap = np.zeros(n)
+                for d in (0.0, 0.009, 0.018):
+                    i = int(d * SR)
+                    clap[i:] += rs.randn(n - i) * np.exp(-np.arange(n - i) / SR / 0.035)
+                clap = bp_fast(clap, 900, 5000) * 0.07
+                add(L, clap, tq, 0.9); add(R, clap, tq, 1.0)
+            for s16 in range(4):
+                n = int(0.05 * SR)
+                sh = hp_fast(rs.randn(n), 7000) * np.exp(-np.arange(n) / SR / 0.012) * (0.035 if s16 % 2 else 0.018)
+                sw = 0.03 if s16 % 2 else 0.0
+                add(L, sh, tq + s16 * BEAT / 4 + sw, 0.7); add(R, sh, tq + s16 * BEAT / 4 + sw, 1.0)
+        n = int(0.3 * SR); t = np.arange(n) / SR
+        kick = np.sin(2 * np.pi * (50 + 70 * np.exp(-t / 0.03)) * t) * np.exp(-t / 0.13) * 0.18
+        add(L, kick, t0 + 3.5 * BEAT); add(R, kick, t0 + 3.5 * BEAT)
     # vinyl-ish bed
     crack = np.zeros(N)
     idx = rs.randint(0, N, 180)
@@ -200,7 +245,7 @@ def music():
     bed = lp_fast(rs.randn(N), 2500) * 0.004 + bp_fast(crack, 1500, 7000) * 0.05
     L += bed; R += bed
     # lo-fi warmth
-    L = lp_fast(L, 5200); R = lp_fast(R, 5200)
+    L = lp_fast(L, 9000); R = lp_fast(R, 9000)
     fade = np.ones(N)
     fi = int(0.05 * SR); fo = int(1.0 * SR)
     fade[:fi] = np.linspace(0, 1, fi)
@@ -271,6 +316,11 @@ def whoosh(dur=0.6):
     return bp_fast(rs.randn(n), 400, 2500) * np.sin(np.pi * t / dur) ** 2 * 0.12
 
 
+def glock(freq):
+    n = int(0.8 * SR); t = np.arange(n) / SR
+    return (np.sin(2 * np.pi * freq * t) + 0.3 * np.sin(2 * np.pi * freq * 4.1 * t) * np.exp(-t / 0.05)) * np.exp(-t / 0.3) * 0.12
+
+
 def clink():
     n = int(0.5 * SR); t = np.arange(n) / SR
     return (np.sin(2 * np.pi * 2600 * t) + 0.5 * np.sin(2 * np.pi * 4100 * t)) * np.exp(-t / 0.08) * 0.08
@@ -315,7 +365,10 @@ def foley(variant):
     add(F, clink(), 11.8)
     add(F, clink(), 12.2, 0.7)
     add(F, water(1.25), 13.0, 0.5)
-    add(F, whoosh(0.7), 14.68)
+    for w in (2.8, 9.8, 12.6, 14.72):
+        add(F, whoosh(0.35), w - 0.2, 1.6)
+    for tp, m in ((5.35, 84), (5.52, 88), (5.69, 91), (6.12, 96)):
+        add(F, glock(midi(m)), tp, 0.9)
     add(F, popb(1200), 16.47, 0.5)
     return F
 
@@ -334,8 +387,8 @@ def main(variants):
         envv = np.convolve(np.abs(voice), np.ones(4800) / 4800, mode='same')
         duck = 1 - 0.45 * np.clip(envv / 0.05, 0, 1)
         duck = np.convolve(duck, np.ones(9600) / 9600, mode='same')
-        L = mL * duck * 0.9 + fx * 0.35 + voice * 0.62
-        R = mR * duck * 0.9 + fx * 0.35 + voice * 0.62
+        L = mL * duck * 1.0 + fx * 0.35 + voice * 0.7
+        R = mR * duck * 1.0 + fx * 0.35 + voice * 0.7
         st = np.stack([L, R], 1)
         st /= max(1.0, np.max(np.abs(st)) / 0.95)
         sf.write(os.path.join(BUILD, f'audio_{v}.wav'), st.astype(np.float32), SR, subtype='FLOAT')

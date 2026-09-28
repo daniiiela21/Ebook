@@ -34,14 +34,24 @@ const out = document.getElementById('out');
 const ctx = out.getContext('2d');
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(C.bg);
+scene.background = (() => {
+  const c = document.createElement('canvas');
+  c.width = 8; c.height = 256;
+  const g = c.getContext('2d');
+  const gr = g.createLinearGradient(0, 0, 0, 256);
+  gr.addColorStop(0, '#ffe9c9'); gr.addColorStop(0.55, '#ffd6ad'); gr.addColorStop(1, '#ffc49c');
+  g.fillStyle = gr; g.fillRect(0, 0, 8, 256);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+})();
 const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 scene.environmentIntensity = 0.55;
 
-const hemi = new THREE.HemisphereLight('#fff7e6', '#e9d6b2', 0.9);
+const hemi = new THREE.HemisphereLight('#fff1d8', '#e59a55', 0.85);
 scene.add(hemi);
-const key = new THREE.DirectionalLight('#fff4e2', 1.55);
+const key = new THREE.DirectionalLight('#ffe6c4', 1.7);
 key.castShadow = true;
 key.shadow.mapSize.set(2048, 2048);
 Object.assign(key.shadow.camera, { left: -6, right: 6, top: 6, bottom: -6, near: 1, far: 40 });
@@ -49,7 +59,7 @@ key.shadow.radius = 7;
 key.shadow.bias = -0.0006;
 key.shadow.normalBias = 0.02;
 scene.add(key, key.target);
-const sun = new THREE.DirectionalLight('#fff0d0', 1.9);
+const sun = new THREE.DirectionalLight('#ffd58f', 2.6);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
 Object.assign(sun.shadow.camera, { left: -5, right: 5, top: 5, bottom: -5, near: 1, far: 40 });
@@ -61,7 +71,7 @@ scene.add(sun, sun.target);
 const camera = new THREE.OrthographicCamera(-W / H * 5, W / H * 5, 5, -5, 0.1, 100);
 
 // ------------------------------------------------------------ world
-buildRoom(scene);
+const room = buildRoom(scene);
 const ch = new Character(scene);
 
 const sillX = { lettuce: -0.45, chives: 0.05, mint: 0.55, basil: 1.1 };
@@ -337,6 +347,39 @@ function applyGarden(g, basilInPot) {
   if (g.harvest.straw) sf.visible = false;
 }
 
+// ------------------------------------------------------------ camera dynamics (Reels feel)
+const CUTS = [2.8, 5.25, 9.8, 10.325, 10.85, 11.35, 12.6];
+const WHIPS = [2.8, 9.8, 12.6, 14.72];
+const BEAT = 0.7;
+export function whipAmount(t) {
+  let w = 0;
+  for (const c of WHIPS) w = Math.max(w, 1 - Math.abs(t - c) / 0.12);
+  return clamp(w);
+}
+function lastCut(t) {
+  let c = 0;
+  for (const x of CUTS) if (t >= x) c = x;
+  return c;
+}
+function dynamics(t, cam) {
+  const c = lastCut(t);
+  const dt = t - c;
+  // punch-in: each shot starts a touch closer and settles
+  const punch = 1 + 0.1 * (1 - easeOut(seg(dt, 0, 0.45)));
+  // slow orbit drift inside the shot
+  const drift = dt * 2.2;
+  // soft pulse on every beat
+  const ph = (t % BEAT) / BEAT;
+  const pulse = 1 + 0.008 * Math.exp(-ph * 9);
+  // whip pan across the cut
+  let whipAz = 0;
+  for (const w of WHIPS) {
+    const d = t - w;
+    if (Math.abs(d) < 0.12) whipAz = d < 0 ? (1 - Math.abs(d) / 0.12) * 14 : -(1 - d / 0.12) * 14;
+  }
+  return { ...cam, az: cam.az + drift + whipAz, zoom: cam.zoom * punch * pulse };
+}
+
 // ------------------------------------------------------------ per-frame update
 const CAM = {
   wide: { target: v3(0.25, 1.25, -0.35), az: 45, el: 31, zoom: 0.68 },
@@ -384,7 +427,7 @@ function sunSetup(t) {
   sun.position.set(cx + Math.sin(az) * 9, 6.5, -3 - Math.cos(az) * 9);
   sun.target.position.set(cx, 0, -1.2);
   const flick = (t >= S.s3[0] && t < S.s3[1]) ? 0.85 + 0.15 * Math.sin(t * 20) : 1;
-  sun.intensity = 1.9 * flick;
+  sun.intensity = 2.6 * flick;
   key.position.set(-4.5, 10, 6);
   key.target.position.set(0.3, 0, -0.5);
 }
@@ -599,7 +642,7 @@ function update(t, variant) {
     const camUp = v3(-Math.sin(Math.PI / 4) * Math.sin(0.3), Math.cos(0.3), -Math.cos(Math.PI / 4) * Math.sin(0.3));
     const tableCam = { target: tc.clone().sub(camUp.multiplyScalar(0.075)), az: 45, el: 17, zoom: lerp(6.9, 7.2, seg(t, 15.3, 18)) };
     const c6 = { ...CAM.wide, target: v3(0.35, 1.25, -0.45), zoom: 0.73 };
-    cam = mixCam(c6, tableCam, ease(seg(t, S.s7[0], S.s7[0] + 0.62)));
+    cam = mixCam(c6, tableCam, ease(seg(t, S.s7[0], S.s7[0] + 0.42)));
   }
 
   applyGarden(g, basilInPot);
@@ -607,7 +650,8 @@ function update(t, variant) {
   if (hook && variant !== 'base' && !(variant === 'A' && t < 1.4)) {
     P.plate.visible = false;
   }
-  setCam(cam);
+  room.userData.lamp.visible = cam.zoom < 1.6;
+  setCam(dynamics(t, cam));
   return { chs, g };
 }
 
@@ -620,10 +664,27 @@ const HOOKS = {
 };
 
 function overlay(t, variant) {
-  const top = 330;
-  O.caption(ctx, HOOKS[variant], { t, t0: 0.02, t1: 2.72, cy: top + 20, size: 66, maxW: 780 });
-  O.caption(ctx, ['…e descobri que dava pra plantar ', { t: 'MUITA', color: O.ACCENT }, ' coisa.'], { t, t0: 2.9, t1: 5.15, cy: top + 20, size: 64, maxW: 760 });
-  if (t >= 6.15 && t < 7.2) {
+  const cy = 390;
+  const Y = O.HILITE;
+  const hook = {
+    base: ['Comecei', 'com', 'um', { t: 'vasinho', color: Y }, 'na', 'janela…'],
+    A: ['Comecei', 'com', 'um', { t: 'vasinho', color: Y }, 'na', 'janela', 'e', 'agora', { t: 'olha', color: Y }, { t: 'isso…', color: Y }],
+    B: ['Eu', 'não', 'sabia', 'que', 'dava', 'pra', 'plantar', { t: 'isso', color: Y }, 'dentro', 'de', { t: 'casa…', color: Y }],
+    C: ['Esse', 'cantinho', 'da', 'minha', 'casa', 'ficou', 'meio', { t: 'fora', color: Y }, { t: 'de', color: Y }, { t: 'controle…', color: Y }, { emoji: '1f331' }],
+  }[variant];
+  O.reel(ctx, hook, { t, t0: 0.02, t1: 2.72, cy, stagger: variant === 'base' ? 0.16 : 0.1 });
+  O.reel(ctx, ['…e', 'descobri', 'que', 'dava', 'pra', 'plantar', { t: 'MUITA', color: Y }, 'coisa.'], { t, t0: 2.86, t1: 5.15, cy, stagger: 0.11 });
+  // time-lapse: day counter, sparkles on each new pot, then plant labels
+  if (t >= 5.25 && t < 7.2) {
+    const day = Math.max(1, Math.round(1 + 44 * smooth(seg(t, 5.3, 6.9))));
+    O.dayChip(ctx, day, { cx: 540, cy: 300, t, t0: 5.3, t1: 6.95 });
+    const pops = [[sillX.lettuce, 5.35], [sillX.chives, 5.52], [sillX.mint, 5.69]];
+    for (const [x, t0] of pops) {
+      const p = project(v3(x, SY + 0.3, SZ));
+      O.sparkle(ctx, { x: p.x + 30, y: p.y - 40, t, t0 });
+    }
+    const st = project(v3(ROOM.stand.x, ROOM.stand.top + 0.3, ROOM.stand.z));
+    O.sparkle(ctx, { x: st.x, y: st.y - 30, t, t0: 6.12 });
     const lb = (plantPos, e, txt, t0, dx, dy) => {
       const p = project(plantPos);
       O.label(ctx, e, txt, { x: p.x + dx, y: p.y + dy, t, t0, t1: 6.98 });
@@ -632,19 +693,16 @@ function overlay(t, variant) {
     lb(v3(sillX.chives, SY + 0.72, SZ), '1f33f', 'cebolinha', 6.35, 20, -190);
     lb(v3(sillX.lettuce, SY + 0.4, SZ), '1f96c', 'alface', 6.5, -30, -60);
   }
-  O.caption(ctx, ['E você não precisa de um quintal.'], { t, t0: 7.35, t1: 9.7, cy: top + 20, size: 66, maxW: 760 });
-  O.sequence(ctx, [
-    { t: 'Plantar ', at: 9.95 }, { t: '→ ', at: 10.4, color: O.ACCENT }, { t: 'cuidar ', at: 10.45 },
-    { t: '→ ', at: 10.9, color: O.ACCENT }, { t: 'colher ', at: 10.95 }, { t: '♡', at: 11.4, color: O.ACCENT },
-  ], { t, t1: 12.5, cy: top + 20, size: 60 });
-  O.caption(ctx, ['Foi assim que eu comecei.'], { t, t0: 12.72, t1: 13.55, cy: top + 20, size: 64, maxW: 760 });
-  O.caption(ctx, ['Mas eu queria saber o que mais dava pra plantar…'], { t, t0: 13.72, t1: 14.62, cy: top + 20, size: 62, maxW: 760 });
+  O.reel(ctx, ['E', 'você', 'não', 'precisa', 'de', 'um', { t: 'quintal.', color: Y }], { t, t0: 7.3, t1: 9.7, cy, stagger: 0.12 });
+  O.reel(ctx, ['Plantar', { t: '→', color: Y }, 'cuidar', { t: '→', color: Y }, 'colher', { t: '♡', color: '#ff6b81' }], { t, t0: 9.9, t1: 12.5, cy, stagger: 0.3 });
+  O.reel(ctx, ['Foi', 'assim', 'que', 'eu', { t: 'comecei.', color: Y }], { t, t0: 12.66, t1: 13.55, cy, stagger: 0.09 });
+  O.reel(ctx, ['Mas', 'eu', 'queria', 'saber', 'o', 'que', { t: 'mais', color: Y }, 'dava', 'pra', 'plantar…'], { t, t0: 13.62, t1: 14.62, cy, size: 68, stagger: 0.06 });
   // product
   if (t >= 15.0) {
-    O.caption(ctx, ['100 Hortaliças, Ervas e Frutas para Cultivar Dentro de Casa'], { t, t0: 15.0, t1: 99, cy: 320, size: 52, weight: 700, maxW: 760, pad: 34 });
-    O.plainText(ctx, '+ Guias práticos', { cx: 540, cy: 1235, size: 50, weight: 600, t, t0: 15.55, stroke: 14, color: '#4f6a45' });
-    O.plainText(ctx, 'R$24,90', { cx: 540, cy: 1320, size: 84, weight: 700, t, t0: 16.0, stroke: 18, color: O.ACCENT });
-    O.button(ctx, 'QUERO COMEÇAR ', { cx: 540, cy: 1450, t, t0: 16.45 });
+    O.caption(ctx, ['100 Hortaliças, Ervas e Frutas para Cultivar Dentro de Casa'], { t, t0: 15.0, t1: 99, cy: 320, size: 54, weight: 700, maxW: 760, pad: 34, color: '#8a2f1f' });
+    O.plainText(ctx, '+ Guias práticos', { cx: 540, cy: 1235, size: 54, weight: 700, t, t0: 15.55, stroke: 16, color: '#23897f' });
+    O.plainText(ctx, 'R$24,90', { cx: 540, cy: 1325, size: 92, weight: 700, t, t0: 16.0, stroke: 20, color: '#e8574f' });
+    O.button(ctx, 'QUERO COMEÇAR ', { cx: 540, cy: 1455, t, t0: 16.45 });
   }
 }
 
@@ -699,7 +757,14 @@ window.renderFrame = async (f, variant = 'base', fmt = 'image/png') => {
   update(t, variant);
   renderer.render(scene, camera);
   ctx.clearRect(0, 0, W, H);
-  ctx.drawImage(glCanvas, 0, 0);
+  const wa = whipAmount(t);
+  if (wa > 0.02) {
+    ctx.drawImage(glCanvas, 0, 0);
+    const n = 10;
+    ctx.globalAlpha = 0.16;
+    for (let k = 1; k <= n; k++) ctx.drawImage(glCanvas, (k - n / 2) * wa * 22, 0);
+    ctx.globalAlpha = 1;
+  } else ctx.drawImage(glCanvas, 0, 0);
   overlay(t, variant);
   return out.toDataURL(fmt, 0.95);
 };

@@ -4,31 +4,36 @@ import { rng, clamp, seg, easeOutBack, v3 } from './util.js';
 
 // ---------------------------------------------------------------- palette
 export const C = {
-  bg: '#f6ecd2',
-  wallBack: '#f4e4bf',
-  wallLeft: '#efdcb2',
-  wood: '#dcbb90',
-  woodDark: '#c9a577',
-  floor: '#e5c79f',
-  white: '#fbf8f1',
-  terracotta: '#cf8866',
-  terracottaLight: '#dfa183',
-  sage: '#a3b89c',
-  sageDark: '#86a080',
-  pistachio: '#bcd49c',
-  soil: '#6e4c3b',
-  skin: '#f0c6a4',
-  hair: '#5b4033',
-  sweater: '#d4876b',
-  pants: '#7f9c7d',
-  leaf: '#6aa24a',
-  leafDark: '#4f8038',
-  mint: '#5e9e76',
-  lettuce: '#a9d06c',
-  lettuceIn: '#cfe69b',
-  tomato: '#e0513d',
-  strawberry: '#e2474c',
-  sky: '#dcecf0',
+  bg: '#ffe2bd',
+  wallBack: '#f9b04a',
+  wallLeft: '#f59a3a',
+  wood: '#e3a868',
+  woodDark: '#b8763f',
+  floor: '#d9975a',
+  white: '#fff8ee',
+  terracotta: '#dc6a3f',
+  terracottaLight: '#f28b5e',
+  sage: '#34b3a5',
+  sageDark: '#23897f',
+  pistachio: '#9fd34f',
+  soil: '#6a4330',
+  skin: '#f4c29e',
+  hair: '#4e2f24',
+  sweater: '#2fa89b',
+  pants: '#4d6fa8',
+  leaf: '#4fb13c',
+  leafDark: '#3a8f2e',
+  mint: '#3fa56b',
+  lettuce: '#9bd94a',
+  lettuceIn: '#d2f07c',
+  tomato: '#f0412e',
+  strawberry: '#ee3346',
+  sky: '#a6dcf5',
+  coral: '#e8574f',
+  pink: '#f59ab4',
+  yellow: '#ffcc3d',
+  teal: '#35b0a8',
+  cream: '#fff1d2',
 };
 
 const matCache = new Map();
@@ -101,10 +106,40 @@ function skyTexture() {
   c.width = 16; c.height = 256;
   const g = c.getContext('2d');
   const gr = g.createLinearGradient(0, 0, 0, 256);
-  gr.addColorStop(0, '#cfe4ec');
-  gr.addColorStop(0.6, '#e9f1e8');
-  gr.addColorStop(1, '#fbf1d6');
+  gr.addColorStop(0, '#8fd3f4');
+  gr.addColorStop(0.65, '#c9ecf6');
+  gr.addColorStop(1, '#fff3cf');
   g.fillStyle = gr; g.fillRect(0, 0, 16, 256);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+function tileTexture() {
+  const c = document.createElement('canvas');
+  c.width = 512; c.height = 256;
+  const g = c.getContext('2d');
+  g.fillStyle = '#f3e3c0'; g.fillRect(0, 0, 512, 256);
+  const n = 8, m = 4, w = 512 / n, h = 256 / m;
+  for (let i = 0; i < n; i++) for (let j = 0; j < m; j++) {
+    g.fillStyle = (i + j) % 2 ? '#fff6dc' : '#fff1cf';
+    g.fillRect(i * w + 3, j * h + 3, w - 6, h - 6);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+function pictureTexture() {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 340;
+  const g = c.getContext('2d');
+  const gr = g.createLinearGradient(0, 0, 0, 340);
+  gr.addColorStop(0, '#8fd3f4'); gr.addColorStop(1, '#fff3cf');
+  g.fillStyle = gr; g.fillRect(0, 0, 256, 340);
+  g.fillStyle = '#ffcc3d'; g.beginPath(); g.arc(180, 90, 36, 0, 7); g.fill();
+  g.fillStyle = '#5fb24e'; g.beginPath(); g.ellipse(80, 330, 170, 110, 0, 0, 7); g.fill();
+  g.fillStyle = '#7cc860'; g.beginPath(); g.ellipse(230, 340, 140, 90, 0, 0, 7); g.fill();
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
@@ -115,7 +150,7 @@ export function buildRoom(scene) {
   scene.add(room);
 
   // diorama base
-  const base = rbox(6.5, 0.45, 6.5, 0.14, '#ead5ad');
+  const base = rbox(6.5, 0.45, 6.5, 0.14, '#b9723f');
   base.position.set(0.02, -0.225, 0.02);
   room.add(base);
   const floor = mesh(new THREE.PlaneGeometry(6.05, 6.05), new THREE.MeshStandardMaterial({ map: floorTexture(), roughness: 0.8 }), { cast: false });
@@ -170,67 +205,152 @@ export function buildRoom(scene) {
   room.add(sky);
   const r = rng(3);
   for (let i = 0; i < 6; i++) {
-    const tr = new THREE.Mesh(new THREE.SphereGeometry(0.35 + r() * 0.25, 20, 14), new THREE.MeshBasicMaterial({ color: new THREE.Color(i % 2 ? '#c8d9b4' : '#b8cfa4') }));
+    const tr = new THREE.Mesh(new THREE.SphereGeometry(0.35 + r() * 0.25, 20, 14), new THREE.MeshBasicMaterial({ color: new THREE.Color(i % 2 ? '#7cc860' : '#5fb24e') }));
     tr.position.set(cx - 2.4 + i * 0.7 + r() * 0.2, 0.05 + r() * 0.3, -4.0);
     tr.scale.y = 1.25;
     room.add(tr);
   }
 
-  // kitchen counter along left wall
-  const cab = rbox(0.66, 0.9, 1.9, 0.05, C.wood);
+  // tiled backsplash above the counter
+  const tiles = mesh(new THREE.PlaneGeometry(1.95, 1.0), new THREE.MeshStandardMaterial({ map: tileTexture(), roughness: 0.45 }), { cast: false });
+  tiles.rotation.y = Math.PI / 2;
+  tiles.position.set(-2.845, 1.45, -1.9);
+  room.add(tiles);
+  // top molding
+  const mold1 = rbox(6.3, 0.12, 0.08, 0.03, C.white, 0.6);
+  mold1.position.set(0.02, 4.1, -2.84);
+  room.add(mold1);
+  const mold2 = rbox(0.08, 0.12, 6.3, 0.03, C.white, 0.6);
+  mold2.position.set(-2.84, 4.1, 0.02);
+  room.add(mold2);
+
+  // kitchen counter along left wall (coral cabinets, cream top)
+  const cab = rbox(0.66, 0.9, 1.9, 0.05, C.coral, 0.6);
   cab.position.set(-2.52, 0.45, -1.9);
   room.add(cab);
-  const top = rbox(0.74, 0.07, 1.98, 0.03, C.white, 0.5);
+  const top = rbox(0.74, 0.07, 1.98, 0.03, C.cream, 0.45);
   top.position.set(-2.5, 0.93, -1.9);
   room.add(top);
   for (const z of [-2.35, -1.45]) {
-    const door = rbox(0.02, 0.62, 0.8, 0.01, C.woodDark);
+    const door = rbox(0.03, 0.62, 0.8, 0.02, '#f07a5c', 0.6);
     door.position.set(-2.18, 0.45, z);
     room.add(door);
-    const knob = mesh(new THREE.SphereGeometry(0.03, 12, 10), mat(C.white, 0.4));
-    knob.position.set(-2.16, 0.62, z + (z < -2 ? 0.3 : -0.3));
+    const knob = mesh(new THREE.SphereGeometry(0.035, 12, 10), mat('#ffd36b', 0.3, { metalness: 0.3 }));
+    knob.position.set(-2.15, 0.62, z + (z < -2 ? 0.3 : -0.3));
     room.add(knob);
   }
   // kettle
   const kettle = new THREE.Group();
-  const kb = mesh(new THREE.SphereGeometry(0.14, 24, 16), mat(C.white, 0.35));
+  const kb = mesh(new THREE.SphereGeometry(0.14, 24, 16), mat(C.teal, 0.35));
   kb.scale.y = 0.85;
   kettle.add(kb);
-  const kl = mesh(new THREE.SphereGeometry(0.03, 12, 8), mat(C.terracotta));
+  const kl = mesh(new THREE.SphereGeometry(0.035, 12, 8), mat(C.white));
   kl.position.y = 0.13;
   kettle.add(kl);
-  const ks = mesh(new THREE.CylinderGeometry(0.018, 0.03, 0.14, 10), mat(C.white, 0.35));
+  const ks = mesh(new THREE.CylinderGeometry(0.018, 0.03, 0.14, 10), mat(C.teal, 0.35));
   ks.position.set(0, 0.03, 0.14);
   ks.rotation.x = 0.9;
   kettle.add(ks);
   kettle.position.set(-2.5, 1.08, -2.55);
   room.add(kettle);
-  // cutting board + jar
   const board = rbox(0.34, 0.03, 0.5, 0.012, C.woodDark);
   board.position.set(-2.52, 0.98, -1.55);
   room.add(board);
-  const jar = mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.2, 20), mat(C.sage, 0.5));
-  jar.position.set(-2.55, 1.06, -1.05);
+  const jar = mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.2, 20), mat(C.yellow, 0.4));
+  jar.position.set(-2.55, 1.06, -1.1);
   room.add(jar);
-  const jl = mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.035, 20), mat(C.woodDark));
-  jl.position.set(-2.55, 1.17, -1.05);
+  const jl = mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.035, 20), mat(C.coral));
+  jl.position.set(-2.55, 1.17, -1.1);
   room.add(jl);
+
+  // retro fridge (teal) on the left wall
+  const fr = new THREE.Group();
+  const fb = rbox(0.72, 1.75, 0.74, 0.14, C.teal, 0.45);
+  fb.position.y = 0.875;
+  fr.add(fb);
+  const seam = rbox(0.02, 0.02, 0.66, 0.01, '#23877f', 0.5);
+  seam.position.set(0.365, 1.2, 0);
+  fr.add(seam);
+  for (const [y, h] of [[1.45, 0.3], [0.8, 0.35]]) {
+    const hd = mesh(new THREE.CapsuleGeometry(0.025, h, 4, 10), mat('#e8eef0', 0.25, { metalness: 0.4 }));
+    hd.position.set(0.39, y, -0.26);
+    fr.add(hd);
+  }
+  const mags = [[C.yellow, 1.55, 0.05], [C.coral, 1.35, 0.15], [C.pink, 0.95, 0.05], [C.white, 1.6, 0.2]];
+  for (const [c, y, z] of mags) {
+    const m = mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.02, 16), mat(c, 0.5));
+    m.rotation.z = Math.PI / 2;
+    m.position.set(0.375, y, z);
+    fr.add(m);
+  }
+  // tiny house ornament on top
+  const hb = rbox(0.24, 0.2, 0.22, 0.03, '#d9975a', 0.9);
+  hb.position.set(0, 1.86, 0);
+  fr.add(hb);
+  const roof = mesh(new THREE.ConeGeometry(0.2, 0.16, 4), mat(C.coral, 0.6));
+  roof.rotation.y = Math.PI / 4;
+  roof.position.set(0, 2.04, 0);
+  fr.add(roof);
+  const hw = rbox(0.02, 0.07, 0.07, 0.01, '#3fae5a', 0.6);
+  hw.position.set(0.12, 1.87, 0);
+  fr.add(hw);
+  fr.position.set(-2.45, 0, 1.45);
+  room.add(fr);
 
   // wall shelf (left wall)
   const shelf = rbox(0.4, 0.06, 1.3, 0.02, C.wood);
   shelf.position.set(-2.66, 2.3, -0.15);
   room.add(shelf);
-  // small frame on left wall
-  const pic = rbox(0.04, 0.6, 0.46, 0.02, C.white);
-  pic.position.set(-2.84, 3.1, -0.1);
+  // picture on the left wall
+  const pic = rbox(0.05, 0.6, 0.48, 0.03, C.coral);
+  pic.position.set(-2.84, 3.15, -0.1);
   room.add(pic);
-  const pin = rbox(0.02, 0.46, 0.32, 0.01, C.pistachio);
-  pin.position.set(-2.82, 3.1, -0.1);
+  const pin = mesh(new THREE.PlaneGeometry(0.36, 0.48), new THREE.MeshStandardMaterial({ map: pictureTexture(), roughness: 0.8 }), { cast: false });
+  pin.rotation.y = Math.PI / 2;
+  pin.position.set(-2.81, 3.15, -0.1);
   room.add(pin);
-  const sun = mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.02, 20), mat(C.terracottaLight));
-  sun.rotation.z = Math.PI / 2;
-  sun.position.set(-2.8, 3.2, -0.14);
-  room.add(sun);
+  // clock on the back wall
+  const clock = new THREE.Group();
+  const cr = mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.06, 36), mat(C.coral, 0.5));
+  cr.rotation.x = Math.PI / 2;
+  clock.add(cr);
+  const cf = mesh(new THREE.CylinderGeometry(0.21, 0.21, 0.02, 36), mat(C.white, 0.5));
+  cf.rotation.x = Math.PI / 2;
+  cf.position.z = 0.025;
+  clock.add(cf);
+  for (const [len, rot] of [[0.13, 0.5], [0.17, 2.3]]) {
+    const hand = rbox(0.018, len, 0.01, 0.004, '#4e2f24');
+    hand.geometry.translate(0, len / 2, 0);
+    hand.rotation.z = rot;
+    hand.position.z = 0.04;
+    clock.add(hand);
+  }
+  clock.position.set(2.45, 3.2, -2.82);
+  room.add(clock);
+
+  // curtains + rod over the window
+  const rod = mesh(new THREE.CylinderGeometry(0.025, 0.025, 3.5, 10), mat(C.woodDark, 0.5));
+  rod.rotation.z = Math.PI / 2;
+  rod.position.set(cx, 3.32, -2.72);
+  room.add(rod);
+  for (const e of [-1, 1]) {
+    const knob = mesh(new THREE.SphereGeometry(0.06, 12, 10), mat(C.woodDark, 0.5));
+    knob.position.set(cx + e * 1.78, 3.32, -2.72);
+    room.add(knob);
+    const drape = new THREE.Group();
+    for (let k = 0; k < 4; k++) {
+      const f = mesh(new THREE.CylinderGeometry(0.07, 0.085 + k * 0.004, 2.25, 14), mat(C.coral, 0.9));
+      f.position.set(k * 0.1 * -e, 2.2, (k % 2) * 0.03);
+      drape.add(f);
+    }
+    const tie = mesh(new THREE.TorusGeometry(0.2, 0.025, 8, 20), mat(C.yellow, 0.6));
+    tie.rotation.x = Math.PI / 2;
+    tie.scale.set(1.1, 0.7, 1);
+    tie.position.set(-e * 0.15, 1.75, 0.015);
+    drape.add(tie);
+    drape.position.set(cx + e * 1.55, 0, -2.68);
+    room.add(drape);
+  }
 
   // plant stand (two tiers)
   const S = ROOM.stand;
@@ -245,35 +365,76 @@ export function buildRoom(scene) {
     room.add(leg);
   }
 
-  // rug
-  const rug = mesh(new THREE.CylinderGeometry(1.45, 1.45, 0.02, 64), mat(C.pistachio, 0.95), { cast: false });
-  rug.position.set(0.85, 0.012, 0.7);
+  // rug (yellow with orange border)
+  const rug = rbox(2.7, 0.03, 2.1, 0.012, '#f7a13a', 0.95);
+  rug.castShadow = false;
+  rug.position.set(0.95, 0.016, 0.75);
   room.add(rug);
-  const rug2 = mesh(new THREE.TorusGeometry(1.32, 0.018, 8, 80), mat(C.white, 0.9), { cast: false });
-  rug2.rotation.x = Math.PI / 2;
-  rug2.position.set(0.85, 0.024, 0.7);
-  room.add(rug2);
+  const rugIn = rbox(2.3, 0.03, 1.7, 0.012, C.yellow, 0.95);
+  rugIn.castShadow = false;
+  rugIn.position.set(0.95, 0.022, 0.75);
+  room.add(rugIn);
 
-  // table
+  // table with a pink tablecloth
   const T = ROOM.table;
-  const tt = rbox(T.w, 0.08, T.d, 0.035, C.wood, 0.7);
-  tt.position.set(T.x, T.y - 0.04, T.z);
+  const tt = rbox(T.w, 0.06, T.d, 0.03, C.wood, 0.7);
+  tt.position.set(T.x, T.y - 0.05, T.z);
   room.add(tt);
+  const cloth = rbox(T.w + 0.04, 0.035, T.d + 0.04, 0.017, C.pink, 0.9);
+  cloth.position.set(T.x, T.y - 0.015, T.z);
+  room.add(cloth);
+  for (const [dx, dz, w, d] of [[0, T.d / 2 + 0.02, T.w + 0.04, 0.03], [0, -T.d / 2 - 0.02, T.w + 0.04, 0.03], [T.w / 2 + 0.02, 0, 0.03, T.d + 0.04], [-T.w / 2 - 0.02, 0, 0.03, T.d + 0.04]]) {
+    const drop = rbox(w, 0.2, d, 0.012, C.pink, 0.9);
+    drop.position.set(T.x + dx, T.y - 0.12, T.z + dz);
+    room.add(drop);
+  }
   for (const dx of [-0.68, 0.68]) for (const dz of [-0.36, 0.36]) {
-    const leg = mesh(new THREE.CylinderGeometry(0.035, 0.028, T.y - 0.08, 12), mat(C.woodDark));
+    const leg = mesh(new THREE.CylinderGeometry(0.035, 0.028, T.y - 0.08, 12), mat(C.white, 0.5));
     leg.position.set(T.x + dx, (T.y - 0.08) / 2, T.z + dz);
     room.add(leg);
   }
-  // stool
-  const st = mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.07, 28), mat(C.terracottaLight));
-  st.position.set(T.x + 1.15, 0.52, T.z + 0.35);
-  room.add(st);
-  for (let i = 0; i < 3; i++) {
-    const a = (i / 3) * Math.PI * 2;
-    const l = mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.5, 8), mat(C.woodDark));
-    l.position.set(T.x + 1.15 + Math.cos(a) * 0.14, 0.25, T.z + 0.35 + Math.sin(a) * 0.14);
-    room.add(l);
-  }
+  // chairs: white with red cushions
+  const chair = (x, z, yaw) => {
+    const g = new THREE.Group();
+    const seat = rbox(0.44, 0.05, 0.44, 0.02, C.white, 0.5);
+    seat.position.y = 0.48;
+    g.add(seat);
+    const cush = rbox(0.4, 0.06, 0.4, 0.03, C.coral, 0.85);
+    cush.position.y = 0.53;
+    g.add(cush);
+    for (const lx of [-0.18, 0.18]) for (const lz of [-0.18, 0.18]) {
+      const l = mesh(new THREE.CylinderGeometry(0.022, 0.02, 0.48, 8), mat(C.white, 0.5));
+      l.position.set(lx, 0.24, lz);
+      g.add(l);
+    }
+    for (const lx of [-0.18, 0.18]) {
+      const p = mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.5, 8), mat(C.white, 0.5));
+      p.position.set(lx, 0.74, -0.2);
+      g.add(p);
+    }
+    const back = rbox(0.44, 0.14, 0.04, 0.02, C.white, 0.5);
+    back.position.set(0, 0.96, -0.2);
+    g.add(back);
+    g.position.set(x, 0, z);
+    g.rotation.y = yaw;
+    room.add(g);
+  };
+  chair(T.x + 1.08, T.z, -Math.PI / 2);
+  chair(T.x - 0.35, T.z + 0.85, Math.PI);
+
+  // pendant lamp over the table (hidden in close-ups)
+  const lamp = new THREE.Group();
+  const cord = mesh(new THREE.CylinderGeometry(0.008, 0.008, 1.7, 6), mat('#4e2f24'), { cast: false });
+  cord.position.y = 0.85;
+  lamp.add(cord);
+  const shade = mesh(new THREE.CylinderGeometry(0.06, 0.26, 0.2, 28, 1, true), mat(C.yellow, 0.4, { side: THREE.DoubleSide }));
+  lamp.add(shade);
+  const bulb = mesh(new THREE.SphereGeometry(0.06, 14, 10), new THREE.MeshStandardMaterial({ color: '#fff6d8', emissive: '#ffe6a0', emissiveIntensity: 1.2 }), { cast: false });
+  bulb.position.y = -0.08;
+  lamp.add(bulb);
+  lamp.position.set(T.x, 2.75, T.z);
+  room.add(lamp);
+  room.userData.lamp = lamp;
 
   return room;
 }

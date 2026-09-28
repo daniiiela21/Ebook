@@ -17,7 +17,7 @@ export async function loadOverlayAssets() {
     await f.load();
     document.fonts.add(f);
   }
-  for (const code of ['1f331', '1f33f', '1f96c']) {
+  for (const code of ['1f331', '1f33f', '1f96c', '2728', '1f4c5']) {
     const img = new Image();
     img.src = `/node_modules/@twemoji/svg/${code}.svg`;
     await img.decode();
@@ -243,6 +243,111 @@ export function plainText(ctx, text, { cx, cy, size, weight = 600, color = INK, 
   }
   ctx.fillStyle = color;
   ctx.fillText(text, 0, 0);
+  ctx.restore();
+}
+
+// Reels-style caption: bold white words with a dark outline, popping in one by one.
+// words: array of strings / {t, color} / {emoji}
+const OUTLINE = '#3b1d12';
+export const HILITE = '#ffd23f';
+export function reel(ctx, words, { cx = 540, cy = 380, size = 76, maxW = 860, t, t0, t1, stagger = 0.075 }) {
+  if (t < t0 || t > t1 + 0.2) return;
+  const out = 1 - easeOut(seg(t, t1, t1 + 0.16));
+  if (out <= 0) return;
+  ctx.save();
+  ctx.font = `700 ${size}px ${FONT}`;
+  ctx.textBaseline = 'middle';
+  const items = [];
+  for (const w of words) {
+    if (typeof w === 'string') w.split(/\s+/).filter(Boolean).forEach((x) => items.push({ t: x }));
+    else items.push({ ...w });
+  }
+  const space = ctx.measureText(' ').width + size * 0.2;
+  items.forEach((it) => (it.w = it.emoji ? size * 1.05 : ctx.measureText(it.t).width));
+  const lines = [[]];
+  let lw = 0;
+  for (const it of items) {
+    if (lw + it.w > maxW && lines[lines.length - 1].length) { lines.push([]); lw = 0; }
+    lines[lines.length - 1].push(it);
+    lw += it.w + space;
+  }
+  const lh = size * 1.18;
+  let idx = 0;
+  lines.forEach((line, li) => {
+    const total = line.reduce((a, b) => a + b.w, 0) + space * (line.length - 1);
+    let x = cx - total / 2;
+    const y = cy + (li - (lines.length - 1) / 2) * lh;
+    for (const it of line) {
+      const ta = t0 + idx * stagger;
+      idx++;
+      const k = seg(t, ta, ta + 0.22);
+      if (k > 0) {
+        const sc = k < 1 ? 0.55 + 0.45 * easeOutBack(k) + 0.12 * Math.sin(k * Math.PI) : 1;
+        ctx.save();
+        ctx.globalAlpha = clamp(k * 3) * out;
+        ctx.translate(x + it.w / 2, y + (1 - easeOut(k)) * 20);
+        ctx.scale(sc, sc);
+        if (it.emoji) {
+          ctx.drawImage(EMOJI[it.emoji], -size * 0.5, -size * 0.52, size * 1.02, size * 1.02);
+        } else {
+          ctx.textAlign = 'center';
+          ctx.shadowColor = 'rgba(60,25,10,0.35)';
+          ctx.shadowBlur = 18;
+          ctx.shadowOffsetY = 8;
+          ctx.lineJoin = 'round';
+          ctx.lineWidth = size * 0.2;
+          ctx.strokeStyle = OUTLINE;
+          ctx.strokeText(it.t, 0, 0);
+          ctx.shadowColor = 'transparent';
+          ctx.fillStyle = it.color || '#ffffff';
+          ctx.fillText(it.t, 0, 0);
+        }
+        ctx.restore();
+      }
+      x += it.w + space;
+    }
+  });
+  ctx.restore();
+}
+
+// Sparkle burst (✨) at a screen point.
+export function sparkle(ctx, { x, y, t, t0, size = 70 }) {
+  const u = seg(t, t0, t0 + 0.55);
+  if (u <= 0 || u >= 1) return;
+  ctx.save();
+  ctx.globalAlpha = Math.sin(u * Math.PI);
+  ctx.translate(x, y - u * 40);
+  const s = size * (0.5 + 0.7 * easeOutBack(Math.min(1, u * 2)));
+  ctx.rotate((u - 0.5) * 0.6);
+  ctx.drawImage(EMOJI['2728'], -s / 2, -s / 2, s, s);
+  ctx.restore();
+}
+
+// Small "dia N" counter chip for the time-lapse.
+export function dayChip(ctx, day, { cx = 540, cy = 250, t, t0, t1 }) {
+  if (t < t0 || t > t1 + 0.15) return;
+  const k = easeOutBack(seg(t, t0, t0 + 0.25));
+  const a = clamp(seg(t, t0, t0 + 0.1)) * (1 - easeOut(seg(t, t1, t1 + 0.15)));
+  const size = 46;
+  ctx.save();
+  ctx.font = `700 ${size}px ${FONT}`;
+  ctx.textBaseline = 'middle';
+  const txt = `dia ${day}`;
+  const tw = ctx.measureText(txt).width;
+  const w = tw + size * 1.2 + 60, h = size + 34;
+  ctx.globalAlpha = a;
+  ctx.translate(cx, cy);
+  ctx.scale(k, k);
+  ctx.shadowColor = 'rgba(60,25,10,0.3)';
+  ctx.shadowBlur = 20;
+  ctx.shadowOffsetY = 8;
+  roundRect(ctx, -w / 2, -h / 2, w, h, h / 2);
+  ctx.fillStyle = '#e8574f';
+  ctx.fill();
+  ctx.shadowColor = 'transparent';
+  ctx.drawImage(EMOJI['1f4c5'], -w / 2 + 22, -size * 0.52, size * 1.02, size * 1.02);
+  ctx.fillStyle = '#fffaf0';
+  ctx.fillText(txt, -w / 2 + 34 + size * 1.05, 3);
   ctx.restore();
 }
 
