@@ -95,7 +95,9 @@ def humanize(v):
     env = np.convolve(np.abs(v), np.ones(480) / 480, mode='same')
     gain = 1 / (1 + np.maximum(0, env - 0.12) * 3.5)
     v = v * gain
-    wet = np.convolve(v, room_ir())[: len(v)]
+    ir = room_ir()
+    L = len(v) + len(ir)
+    wet = np.fft.irfft(np.fft.rfft(v, L) * np.fft.rfft(ir, L), L)[: len(v)]
     return v + wet * 0.12
 
 
